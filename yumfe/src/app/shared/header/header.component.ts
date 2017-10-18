@@ -1,4 +1,4 @@
-import { Component, OnInit, Inject, ViewChild } from '@angular/core';
+import { Component, OnInit, Inject, ViewChild, Optional } from '@angular/core';
 import { Location } from '@angular/common';
 import * as remote from '../../remote';
 import { MatButtonModule, MatMenu, MatMenuTrigger } from '@angular/material';
@@ -9,6 +9,12 @@ import { ControlUserService } from '../services/control-user.service';
 import { BalanceService } from '../services/balance.service';
 import { GlobalSettingsService } from '../../shared/services/global-settings-service.service';
 import { Observable, BehaviorSubject } from 'rxjs/Rx';
+
+//import {EventSourcePolyfill} from 'ng-event-source';
+import { EventSourcePolyfill } from 'ng-event-source';
+
+
+import { Configuration } from '../../remote/configuration';
 
 
 @Component({
@@ -29,6 +35,8 @@ export class HeaderComponent implements OnInit {
   public balance: Observable<number>;
   public currency: Observable<string>;
 
+  public configuration: Configuration = new Configuration();
+
   @ViewChild(MatMenuTrigger) trigger: MatMenuTrigger; //
 
   constructor(private authenticationService: AuthenticationService,
@@ -37,38 +45,43 @@ export class HeaderComponent implements OnInit {
     private controlUserService: ControlUserService,
     private location: Location,
     private balanceService: BalanceService,
-    private globalSettingsService: GlobalSettingsService
-  ) { }
+    private globalSettingsService: GlobalSettingsService,
+    @Optional() configuration: Configuration
+  ) {
+    if (configuration) {
+      this.configuration = configuration;
+    }
+  }
 
   ngOnInit() {
 
     this.user = this.authenticationService.getLoggedInUser();
     this.role = this.authenticationService.getLoggedInRole();
 
-    this.controlUserService.getUser().subscribe(user=>{
-      this.controlUser=user;
+    this.controlUserService.getUser().subscribe(user => {
+      this.controlUser = user;
     });
 
     this.router.events.subscribe((event) => {
-        if(event instanceof NavigationEnd) {
-            //console.log(event);
-           if(!event.url.startsWith('/hungry') && this.controlUser!=null){
-            //console.log("Stop control");
-            this.controlUserService.setUser(0);
-           // console.log(this.location.path());
-           // this.location.replaceState(this.location.path(), "");
-           }
+      if (event instanceof NavigationEnd) {
+        //console.log(event);
+        if (!event.url.startsWith('/hungry') && this.controlUser != null) {
+          //console.log("Stop control");
+          this.controlUserService.setUser(0);
+          // console.log(this.location.path());
+          // this.location.replaceState(this.location.path(), "");
         }
+      }
     });
 
     this.route.queryParams.subscribe(params => {
 
-      if(this.user && this.user.role == 'ADMIN'){
+      if (this.user && this.user.role == 'ADMIN') {
         let userid = +params['userid'] || 0;
 
         //comment if dont want to keep controlled user if no path query exists
         if (!userid) return;
-        if(!this.controlUser){
+        if (!this.controlUser) {
           this.controlUserService.setUser(userid);
         }
       }
@@ -92,7 +105,19 @@ export class HeaderComponent implements OnInit {
     this.setDestinations();
     this.isOpen = this.trigger.menuOpen;
 
+
     this.balance = this.balanceService.getBalance();
+
+    // event source for balance updates with authorization token in headers
+    const source = new EventSourcePolyfill(
+      'http://localhost:8080/api/balanceSse',
+      { headers: { 'Authorization': this.configuration.apiKey } });
+
+    source.onmessage = (balance => {
+      this.balanceService.updateBalance(JSON.parse(balance.data));
+    });
+
+
     this.currency = this.globalSettingsService.getCurrency();
 
   }
@@ -142,10 +167,10 @@ export class HeaderComponent implements OnInit {
     }
   }
 
-  exitControlUser(){
+  exitControlUser() {
 
-     this.controlUserService.setUser(0);
-     this.router.navigate(['/hungry']);
+    this.controlUserService.setUser(0);
+    this.router.navigate(['/hungry']);
   }
 
 }
