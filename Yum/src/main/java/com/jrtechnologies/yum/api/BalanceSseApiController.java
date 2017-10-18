@@ -76,15 +76,15 @@ public class BalanceSseApiController  {
             emitter = new SseEmitter();
             emitters.put(id, emitter);
         } else {
-            emitter = emitters.get(id);
+            emitter = emitters.get(id);     
         }
         emitter.onCompletion(() -> emitters.remove(id));
-        try {
-            emitter.send(userRepository.findOne(id).getBalance(), MediaType.APPLICATION_JSON);
-        } catch (IOException ex) {
-            emitter.complete();
-            emitters.remove(id);
-        }
+//        try {          
+//            emitter.send(userRepository.findOne(id).getBalance(), MediaType.APPLICATION_JSON);
+//        } catch (IOException ex) {
+//            emitter.complete();
+//            emitters.remove(id);
+//        }
         return emitter;
         
    
