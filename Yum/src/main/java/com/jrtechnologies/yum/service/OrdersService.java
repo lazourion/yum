@@ -20,6 +20,7 @@ import java.util.Iterator;
 import java.util.List;
 //import javax.transaction.Transactional;
 import com.jrtechnologies.yum.api.ApiException;
+import com.jrtechnologies.yum.api.BalanceSseApiController;
 import com.jrtechnologies.yum.api.ConcurrentCreationException;
 import com.jrtechnologies.yum.api.ConcurrentDeletionException;
 import com.jrtechnologies.yum.api.ConcurrentModificationException;
@@ -44,14 +45,18 @@ import com.jrtechnologies.yum.data.repository.HolidaysRepository;
 import com.jrtechnologies.yum.data.repository.SettingsRepository;
 import com.jrtechnologies.yum.data.repository.TransactionRepository;
 import com.jrtechnologies.yum.data.repository.UserRepository;
+import java.io.IOException;
+import java.util.Map;
 import org.joda.time.DateTime;
 import org.joda.time.LocalDate;
 import org.joda.time.LocalDateTime;
 import org.joda.time.LocalTime;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
 public class OrdersService {
@@ -204,7 +209,8 @@ public class OrdersService {
         user.setBalance(balance);
         Transaction transaction = new Transaction(userId, orderAmount, balance, sourceUser.getId(),
                 dailyOrderEntity.getDailyOrderId(), dailyMenuId, 1);
-        transactionRep.save(transaction);
+//        transactionRep.save(transaction);
+        saveTransaction(transaction);
 
         List<FoodWithQuantity> foodsWQ = dailyMenu.getFoods();
         for (com.jrtechnologies.yum.data.entity.Food food : dailyMenuEntity.getFoods()) {
@@ -462,7 +468,8 @@ public class OrdersService {
 
                 Transaction transaction = new Transaction(user.getId(), orderAmount, balance, sourceUser.getId(),
                         dailyOrderEntity.getDailyOrderId(), dailyMenuEntity.getId(), 2);
-                transactionRep.save(transaction);
+//                transactionRep.save(transaction);
+                saveTransaction(transaction);
 
                 // If user requested email confirmation the email service is injected  
                 if (updateOrderItems.getEmailRequest() && (emailService != null)) {
@@ -523,7 +530,8 @@ public class OrdersService {
 
             Transaction transaction = new Transaction(user.getId(), orderAmount, balance, sourceUser.getId(),
                     dailyOrderEntity.getDailyOrderId(), dailyMenuEntity.getId(), 3);
-            transactionRep.save(transaction);
+//            transactionRep.save(transaction);
+            saveTransaction(transaction);
             dailyOrderRep.delete(dailyOrderEntity);
             return orderUpdate;
         }
@@ -611,5 +619,12 @@ public class OrdersService {
 
         // Check if order deadline passed based on given date, deadlineDays and deadlineTime (deadline)
         return (date.toLocalDateTime(deadlineTime).compareTo(LocalDateTime.now()) < 0);
+    }
+    
+    // save transaction in db and emit balance to user
+    private void saveTransaction(Transaction transaction){
+        transactionRep.save(transaction);
+        BalanceSseApiController.sendSseEventsToUI(transaction.getUserId(), transaction.getBalance());
+
     }
 }
