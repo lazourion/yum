@@ -45,11 +45,13 @@ import java.util.logging.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import static org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event;
 @javax.annotation.Generated(value = "io.swagger.codegen.languages.SpringCodegen", date = "2017-09-26T10:52:56.671+03:00")
 
 @Controller
@@ -57,7 +59,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class BalanceSseApiController  {
 
     
-    private static final Map<Long, SseEmitter> emitters = new HashMap<>();
+    private static final Map<SecurityContext, SseEmitter> emitters = new HashMap<>();
     
     @Autowired
     UserRepository userRepository;
@@ -68,17 +70,21 @@ public class BalanceSseApiController  {
     @CrossOrigin
     @PreAuthorize("hasAuthority('hungry')")
     public SseEmitter balanceSseGet() {
-
-        SseEmitter emitter;// = new SseEmitter();
-        Long id = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        //Long id =1L;
-        if (!emitters.containsKey(id)){
+        
+        SseEmitter emitter; // = new SseEmitter();
+        //Long id = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        SecurityContext securityContext = SecurityContextHolder.getContext();
+        //List<SseEmitter> userEmitters;
+        if (!emitters.containsKey(securityContext)){
+           // userEmitters= new ArrayList<>();   
             emitter = new SseEmitter();
-            emitters.put(id, emitter);
+            emitters.put(securityContext, emitter);
         } else {
-            emitter = emitters.get(id);     
+            emitter = emitters.get(securityContext);  
         }
-        emitter.onCompletion(() -> emitters.remove(id));
+       // userEmitters.add(emitter); 
+        System.out.println(">>>>>>emitter added: " + emitters);
+        emitter.onCompletion(() -> emitters.remove(securityContext));
 //        try {          
 //            emitter.send(userRepository.findOne(id).getBalance(), MediaType.APPLICATION_JSON);
 //        } catch (IOException ex) {
@@ -91,13 +97,24 @@ public class BalanceSseApiController  {
     }
     
     public static void sendSseEventsToUI(Long id, BigDecimal balance){
-        SseEmitter emitter = emitters.get(id);
-        try {
-            emitter.send(balance, MediaType.APPLICATION_JSON);
-        } catch (IOException e) {
-            emitter.complete();
-            emitters.remove(id);    
-            e.printStackTrace();
-        }   
+       // List<SseEmitter> userEmitters = emitters.get(id);
+        //System.out.println(">>>>>>>>>useremi: " + userEmitters);
+        Map<Integer, Integer> map = new HashMap<Integer, Integer>();
+//for (Map.Entry<Integer, Integer> entry : map.entrySet()) {
+//    System.out.println("Key = " + entry.getKey() + ", Value = " + entry.getValue());
+//}
+        for (Map.Entry<SecurityContext, SseEmitter> emitterEntry: emitters.entrySet()){
+            try {
+                if ((Long) emitterEntry.getKey().getAuthentication().getPrincipal() == id) {
+                //emitter.send(balance, MediaType.APPLICATION_JSON);
+                    System.out.println(">>>>>>>>>>>>>>>>>>>>sent");
+                    emitterEntry.getValue().send(event().data(balance, MediaType.APPLICATION_JSON));
+                }
+            } catch (IOException e) {
+                emitterEntry.getValue().complete();
+                emitters.remove(emitterEntry.getKey());    
+                e.printStackTrace();
+            }  
+        }
     }
 }
